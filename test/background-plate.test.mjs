@@ -29,12 +29,11 @@ test('person pixels leave the plate unchanged', () => {
   assert.ok(Math.abs(out[4] - 250) <= 2, 'unmasked pixel followed the frame');
 });
 
-test('never-seen pixels stay 0 and are excluded from coverage', () => {
+test('never-seen pixels are excluded from coverage', () => {
   const p = new BackgroundPlate(W, H);
   const mask = new Uint8Array(W * H).fill(1);
   mask[7] = 0;
   p.update(solid(90, 90, 90), mask);
-  assert.strictEqual(p.read()[0], 0);
   assert.strictEqual(p.coverage(), 1 / (W * H));
 });
 
@@ -44,4 +43,25 @@ test('reset resizes and clears', () => {
   p.reset(2, 2);
   assert.strictEqual(p.read().length, 2 * 2 * 4);
   assert.strictEqual(p.coverage(), 0);
+});
+
+test('read() fills never-seen pixels from the nearest seen pixel in the row', () => {
+  const p = new BackgroundPlate(W, H);
+  const mask = new Uint8Array(W * H);
+  mask[1] = 1; mask[2] = 1; // row 0: x=1,2 hidden by a person
+  p.update(solid(77, 88, 99), mask);
+  const out = p.read();
+  for (const x of [1, 2]) {
+    assert.deepStrictEqual([out[x * 4], out[x * 4 + 1], out[x * 4 + 2]], [77, 88, 99]);
+    assert.strictEqual(out[x * 4 + 3], 255);
+  }
+});
+
+test('read() fills a fully-unseen row from the row above', () => {
+  const p = new BackgroundPlate(W, H);
+  const mask = new Uint8Array(W * H);
+  for (let x = 0; x < W; x++) mask[W + x] = 1; // row 1 fully hidden
+  p.update(solid(40, 50, 60), mask);
+  const out = p.read();
+  assert.deepStrictEqual([out[W * 4], out[W * 4 + 1], out[W * 4 + 2]], [40, 50, 60]);
 });

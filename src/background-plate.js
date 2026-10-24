@@ -36,9 +36,31 @@ export class BackgroundPlate {
     }
   }
 
+  // The plate as bytes. Never-seen pixels (the person has covered them since the start)
+  // are filled from the nearest seen pixel in their row, else from a neighbouring row.
   read() {
-    this.out.set(this.plate); // float -> clamped bytes (rounds)
-    return this.out;
+    const { out, width, height, seen } = this;
+    out.set(this.plate); // float -> clamped bytes (rounds)
+    if (this.seenCount === seen.length) return out;
+
+    const copyPx = (to, from) => out.copyWithin(to * 4, from * 4, from * 4 + 4);
+    const rowOk = new Uint8Array(height);
+    for (let y = 0; y < height; y++) {
+      const base = y * width;
+      let first = -1;
+      for (let x = 0; x < width; x++) if (seen[base + x]) { first = x; break; }
+      if (first < 0) continue;
+      rowOk[y] = 1;
+      for (let x = 0; x < first; x++) copyPx(base + x, base + first);
+      for (let x = first + 1, last = first; x < width; x++) {
+        if (seen[base + x]) last = x;
+        else copyPx(base + x, base + last);
+      }
+    }
+    const copyRow = (to, from) => out.copyWithin(to * width * 4, from * width * 4, (from + 1) * width * 4);
+    for (let y = 1; y < height; y++) if (!rowOk[y] && rowOk[y - 1]) { copyRow(y, y - 1); rowOk[y] = 1; }
+    for (let y = height - 2; y >= 0; y--) if (!rowOk[y] && rowOk[y + 1]) { copyRow(y, y + 1); rowOk[y] = 1; }
+    return out;
   }
 
   coverage() {
