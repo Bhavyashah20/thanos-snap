@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Thanos Snap",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Snap your fingers and turn to dust on your webcam.",
   "permissions": [
     "storage"

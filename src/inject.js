@@ -3,6 +3,7 @@ import { createRunner } from './runner.js';
 import { startAudioTrigger } from './audio-trigger.js';
 import { Rpc } from './remote.js';
 
+console.info('[thanos-snap] 0.2.0 loaded (models run in the extension host frame)');
 const settings = { enabled: true, sensitivity: 0.5, mlFill: false };
 const detectors = new Set();
 let hostPromise = null, hostResolve = null;
