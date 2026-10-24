@@ -1,30 +1,17 @@
-import * as ort from 'onnxruntime-web/wasm';
-import { MIGAN_SIZE as N, buildInput, decodeOutput } from './migan.js';
+import { MIGAN_SIZE as N } from './migan.js';
 
-// Browser glue around the MI-GAN generator (CPU/WASM, single thread: pages are not cross-origin isolated).
+// Page-side client for the MI-GAN model that runs in the extension's host frame.
 // inpaint(rgba, seen, w, h): `seen` marks real pixels (1) vs the hole (0); resolves to an RGBA w*h picture
 // in which the hole has been filled with generated texture (real pixels are whatever the caller passed in).
-// Real pixels this close to the hole are treated as unknown: they are often the person's own edge that the
-// segmentation missed, and the model would happily grow them into structure (a red cape became a red blob).
-const HOLE_MARGIN = 32; // pixels at 512x512
-
-export function createMlInpainter({ baseUrl }) {
-  let sessionP = null;
-  const session = () =>
-    (sessionP ||= (async () => {
-      ort.env.wasm.wasmPaths = baseUrl + 'ort/';
-      ort.env.wasm.numThreads = 1;
-      ort.env.wasm.proxy = false;
-      return ort.InferenceSession.create(baseUrl + 'models/migan-512-generator.onnx', { executionProviders: ['wasm'] });
-    })());
-
+export function createMlInpainter({ getHost }) {
   const canvas = (w, h) => Object.assign(document.createElement('canvas'), { width: w, height: h });
 
   return {
-    warm: () => session().catch((err) => console.warn('[thanos-snap] ML model failed to load', err)),
+    warm: () => getHost().then((rpc) => rpc.ready).catch(() => {}),
 
     async inpaint(rgba, seen, w, h) {
-      const s = await session();
+      const rpc = await getHost();
+      await rpc.ready;
       const t0 = performance.now();
       const full = canvas(w, h), small = canvas(N, N);
       const fctx = full.getContext('2d', { willReadFrequently: true });
@@ -45,11 +32,10 @@ export function createMlInpainter({ baseUrl }) {
       const known = new Uint8Array(N * N);
       for (let i = 0; i < N * N; i++) known[i] = md[i * 4] > 127 ? 1 : 0;
 
-      const x = buildInput(rgb512, known, N, HOLE_MARGIN);
-      const out = (await s.run({ gen_input: new ort.Tensor('float32', x, [1, 4, N, N]) })).gen_output.data;
+      const r = await rpc.call('ml-run', { rgb: rgb512.buffer, known: known.buffer }, [rgb512.buffer, known.buffer], 60000);
 
       sctx.imageSmoothingEnabled = true;
-      sctx.putImageData(new ImageData(decodeOutput(out, N), N, N), 0, 0);
+      sctx.putImageData(new ImageData(new Uint8ClampedArray(r.rgba), N, N), 0, 0);
       fctx.imageSmoothingQuality = 'high';
       fctx.drawImage(small, 0, 0, w, h);
       console.info(`[thanos-snap] ML inpainting took ${Math.round(performance.now() - t0)} ms`);

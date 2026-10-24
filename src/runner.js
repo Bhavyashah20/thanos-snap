@@ -1,10 +1,11 @@
 import { Pipeline } from './pipeline.js';
-import { createSegmenter } from './segmenter.js';
+import { createRemoteSegmenter } from './remote.js';
 import { CaptureController } from './capture.js';
 import { createMlInpainter } from './ml-inpaint.js';
 
 // Turns a real camera stream into a processed one. Returns { videoTrack, trigger(), stop() }.
-export async function createRunner(realStream, { assetBase, baseUrl, isMlEnabled = () => false }) {
+// getHost(): Promise<Rpc> to the extension's model host frame (where the models run).
+export async function createRunner(realStream, { getHost, isMlEnabled = () => false }) {
   const video = document.createElement('video');
   video.muted = true;
   video.playsInline = true;
@@ -16,9 +17,11 @@ export async function createRunner(realStream, { assetBase, baseUrl, isMlEnabled
   // The model takes several seconds to load: show the plain camera until it's ready.
   let segmenter = null;
   let pipeline = null;
-  const ml = createMlInpainter({ baseUrl });
+  const ml = createMlInpainter({ getHost });
   const loadSegmenter = async () => {
-    const seg = await createSegmenter({ assetBase, width, height });
+    const rpc = await getHost();
+    await rpc.ready;
+    const seg = await createRemoteSegmenter({ rpc, width, height });
     if (!running) return seg.close();
     segmenter = seg;
     pipeline = new Pipeline({ width, height, segment: () => segmenter.mask(), mlInpaint: (rgba, seen, w, h) => ml.inpaint(rgba, seen, w, h), mlEnabled: isMlEnabled });

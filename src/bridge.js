@@ -1,11 +1,9 @@
 // Isolated-world relay: the page (MAIN world) can't read chrome.storage or runtime URLs.
 const DEFAULTS = { enabled: true, sensitivity: 0.5, mlFill: false };
 const post = (settings) => window.postMessage({ source: 'snap-ext', settings }, '*');
-const assetBase = chrome.runtime.getURL('mediapipe/');
-const baseUrl = chrome.runtime.getURL(''); // extension root, for models/ and ort/
 
 async function sendAll() {
-  post({ ...(await chrome.storage.local.get(DEFAULTS)), assetBase, baseUrl });
+  post(await chrome.storage.local.get(DEFAULTS));
 }
 sendAll();
 chrome.storage.onChanged.addListener(sendAll);
@@ -55,9 +53,28 @@ window.addEventListener('message', (e) => {
   const d = e.data;
   if (e.source !== window || !d || d.source !== 'snap-ext-page') return;
   if (d.type === 'hello') return sendAll();
+  if (d.type === 'need-host') return startHost();
   if (d.type !== 'capture') return;
   if (d.phase === 'countdown') show(`Step out of the camera view<div class="big">${d.countdown}</div>`, null);
   else if (d.phase === 'capturing') show(`Capturing the empty room… ${Math.round(d.progress * 100)}%<br>Stay out of view`, d.progress);
   else if (d.phase === 'done') show('Room captured. You can step back in.', 1, 3000);
   else show(REASONS[d.reason] || 'Capture failed.', null, 6000);
 });
+
+// The models run in a hidden iframe on the extension's own origin, so the page's rules (Trusted Types, CSP)
+// don't apply to them. Created lazily, only when the page actually asks for a camera. A MessageChannel
+// links the page and that frame directly.
+let hostStarted = false;
+function startHost() {
+  if (hostStarted) return;
+  hostStarted = true;
+  const iframe = document.createElement('iframe');
+  iframe.src = chrome.runtime.getURL('host/host.html');
+  iframe.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none';
+  const { port1, port2 } = new MessageChannel();
+  iframe.addEventListener('load', () => {
+    iframe.contentWindow.postMessage({ type: 'port' }, new URL(iframe.src).origin, [port2]);
+    window.postMessage({ source: 'snap-ext', type: 'host-port' }, '*', [port1]);
+  });
+  (document.body || document.documentElement).appendChild(iframe);
+}

@@ -16,3 +16,10 @@ test('values at or below 127 are background', () => {
   thresholdUpsample(small, 2, 1, out, 2, 1);
   assert.deepStrictEqual(Array.from(out), [0, 1]);
 });
+
+test('single-channel masks (stride 1) work the same as RGBA ones', () => {
+  const small = new Uint8Array([255, 0, 0, 255]); // 2x2
+  const out = new Uint8Array(4 * 4);
+  thresholdUpsample(small, 2, 2, out, 4, 4, 127, 1);
+  assert.deepStrictEqual(Array.from(out), [1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1]);
+});
