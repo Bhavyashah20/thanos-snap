@@ -11,8 +11,15 @@ export async function createRunner(realStream, { assetBase }) {
   if (!video.videoWidth) await new Promise((r) => video.addEventListener('loadedmetadata', r, { once: true }));
 
   let width = video.videoWidth, height = video.videoHeight;
-  let segmenter = await createSegmenter({ assetBase, width, height });
-  let pipeline = new Pipeline({ width, height, segment: () => segmenter.mask() });
+  // The model takes several seconds to load: show the plain camera until it's ready.
+  let segmenter = null;
+  let pipeline = null;
+  const loadSegmenter = async () => {
+    const seg = await createSegmenter({ assetBase, width, height });
+    if (!running) return seg.close();
+    segmenter = seg;
+    pipeline = new Pipeline({ width, height, segment: () => segmenter.mask() });
+  };
 
   const src = document.createElement('canvas');
   const srcCtx = src.getContext('2d', { willReadFrequently: true });
@@ -28,6 +35,7 @@ export async function createRunner(realStream, { assetBase }) {
 
   let running = true;
   let busy = false;
+  loadSegmenter().catch((err) => console.warn('[thanos-snap] segmenter failed; passing camera through', err));
 
   async function tick() {
     if (!running) return;
@@ -36,12 +44,17 @@ export async function createRunner(realStream, { assetBase }) {
     try {
       if (video.videoWidth && (video.videoWidth !== width || video.videoHeight !== height)) {
         width = video.videoWidth; height = video.videoHeight;
-        segmenter.close();
-        segmenter = await createSegmenter({ assetBase, width, height });
-        pipeline = new Pipeline({ width, height, segment: () => segmenter.mask() });
+        if (segmenter) segmenter.close();
+        segmenter = pipeline = null;
         alloc();
+        loadSegmenter().catch(() => {});
       }
       srcCtx.drawImage(video, 0, 0, width, height);
+      if (!segmenter) {
+        dstCtx.drawImage(src, 0, 0);
+        busy = false;
+        return schedule();
+      }
       segmenter.input.getContext('2d').drawImage(video, 0, 0, segmenter.input.width, segmenter.input.height);
       await segmenter.send();
       const frame = srcCtx.getImageData(0, 0, width, height);
@@ -64,10 +77,10 @@ export async function createRunner(realStream, { assetBase }) {
   const outStream = dst.captureStream(30);
   return {
     videoTrack: outStream.getVideoTracks()[0],
-    trigger: () => pipeline.trigger(performance.now()),
+    trigger: () => pipeline && pipeline.trigger(performance.now()),
     stop() {
       running = false;
-      segmenter.close();
+      if (segmenter) segmenter.close();
       video.srcObject = null;
     },
   };
