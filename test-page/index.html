@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Snap test</title>
+<style>
+  body { font: 14px system-ui; background: #111; color: #eee; margin: 20px; }
+  video { width: 640px; max-width: 100%; background: #000; display: block; }
+  #log { white-space: pre; color: #9a8f86; margin-top: 10px; }
+</style>
+<video id="v" autoplay muted playsinline></video>
+<div id="log">starting…</div>
+<script>
+  const log = (m) => (document.getElementById('log').textContent = m);
+  navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((s) => {
+    const v = document.getElementById('v');
+    v.srcObject = s;
+    let frames = 0, last = performance.now();
+    const t = s.getVideoTracks()[0];
+    (function count() {
+      v.requestVideoFrameCallback(() => {
+        frames++;
+        const now = performance.now();
+        if (now - last >= 1000) {
+          const set = t.getSettings();
+          log(`fps ${frames}   ${set.width}x${set.height}\nsnap to dissolve, snap again to return`);
+          frames = 0; last = now;
+        }
+        count();
+      });
+    })();
+  }).catch((e) => log('getUserMedia failed: ' + e.message));
+</script>

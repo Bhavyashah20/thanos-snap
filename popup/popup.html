@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  body { width: 260px; margin: 0; padding: 16px; font: 14px system-ui; background: #14110f; color: #eee; }
+  h1 { font-size: 15px; margin: 0 0 12px; }
+  label { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; }
+  input[type=range] { width: 130px; }
+  p { color: #9a8f86; font-size: 12px; margin: 12px 0 0; line-height: 1.4; }
+</style>
+<h1>Thanos Snap</h1>
+<label>Enabled <input id="enabled" type="checkbox"></label>
+<label>Snap sensitivity <input id="sensitivity" type="range" min="0" max="1" step="0.05"></label>
+<p>Reload the call tab after turning on. Step out of frame for a second first so the empty room can be captured, then snap.</p>
+<script src="popup.js"></script>
