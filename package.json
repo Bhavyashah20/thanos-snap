@@ -12,7 +12,6 @@
     "esbuild": "^0.28.2"
   },
   "dependencies": {
-    "@mediapipe/tasks-vision": "^1.1.1",
     "onnxruntime-web": "^1.30.0"
   }
 }

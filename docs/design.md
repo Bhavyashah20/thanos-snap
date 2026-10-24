@@ -5,7 +5,7 @@ Snap your fingers in front of your webcam and *you* turn to dust and blow away, 
 
 ## Goals
 - Snap sound (mic) triggers the effect.
-- Only the person dissolves: dark-brown ash flakes break off starting at one shoulder, sweep across the body over ~1.5-2s, drift sideways with wind. Matches the reference recording (Desktop, "Screen Recording 2026-10-24 at 1.51.58 PM.mov").
+- Only the person dissolves: dark-brown ash flakes break off starting at one shoulder, sweep across the body over ~1.5-2s, drift sideways with wind. Matches the reference clip (the Infinity War "snap" dust-away scene; the clip itself is not in this repo).
 - After it ends, the room is shown empty (no hole, no ghost).
 - Works on any page that calls `getUserMedia`.
 
