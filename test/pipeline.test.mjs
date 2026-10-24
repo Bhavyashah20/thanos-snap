@@ -22,7 +22,7 @@ const px = (b, x, y) => Array.from(b.subarray((y * W + x) * 4, (y * W + x) * 4 +
 
 function make(rects, opts = {}) {
   let current = rects;
-  const p = new Pipeline({ width: W, height: H, durationMs: 1000, returnMs: 400, segment: () => maskOf(current), ...opts });
+  const p = new Pipeline({ width: W, height: H, durationMs: 1000, returnMs: 400, segment: () => maskOf(current), minBackgroundFrames: 1, ...opts });
   const out = new Uint8ClampedArray(W * H * 4);
   const step = (t, r = current) => { current = r; p.processFrame(frameWith(r), out, t); return out; };
   return { p, out, step };
@@ -124,7 +124,7 @@ test('resize resets to present', () => {
 
 test('before the segmenter has a mask (null), frames pass through and the plate learns nothing', () => {
   let ready = false;
-  const p = new Pipeline({ width: W, height: H, durationMs: 1000, segment: () => (ready ? maskOf([R1]) : null) });
+  const p = new Pipeline({ width: W, height: H, durationMs: 1000, segment: () => (ready ? maskOf([R1]) : null), minBackgroundFrames: 1 });
   const out = new Uint8ClampedArray(W * H * 4);
   const f = frameWith([R1]);
   p.processFrame(f, out, 0); // person is in frame; mask not ready yet
@@ -135,4 +135,19 @@ test('before the segmenter has a mask (null), frames pass through and the plate 
   p.processFrame(f, out, 2000);
   // the person must NOT have been baked into the background
   assert.notDeepStrictEqual(px(out, 24, 24), PERSON);
+});
+
+test('gone: a one-frame mask dropout does not flash the person back', () => {
+  let current = [];
+  const p = new Pipeline({ width: W, height: H, durationMs: 1000, minBackgroundFrames: 1, segment: () => maskOf(current) });
+  const out = new Uint8ClampedArray(W * H * 4);
+  const run = (t, rects, personInPicture = rects) => { current = rects; p.processFrame(frameWith(personInPicture), out, t); };
+  for (let t = 0; t < 10; t++) run(t * 33, []);
+  run(400, [R1]);
+  p.trigger(400);
+  run(433, [R1]);
+  run(2000, [R1]);
+  assert.strictEqual(p.state, 'gone');
+  run(2033, [], [R1]); // segmenter misses the person for one frame; they are still in the picture
+  assert.deepStrictEqual(px(out, 24, 24), BG);
 });

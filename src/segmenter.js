@@ -1,6 +1,7 @@
 import { SelfieSegmentation } from '@mediapipe/selfie_segmentation';
 import { thresholdUpsample } from './mask.js';
 
+const MASK_THRESHOLD = 80; // low on purpose: missing part of the person is worse than hiding a bit of wall
 const SEG_WIDTH = 384; // segmentation runs on a downscaled copy; the mask is upsampled
 
 // Returns { size, input, send(): Promise<void>, mask(): Uint8Array, close() }.
@@ -28,7 +29,7 @@ export async function createSegmenter({ assetBase, width, height }) {
       if (!latest) return;
       maskCtx.clearRect(0, 0, sw, sh);
       maskCtx.drawImage(latest, 0, 0, sw, sh);
-      thresholdUpsample(maskCtx.getImageData(0, 0, sw, sh).data, sw, sh, full, width, height);
+      thresholdUpsample(maskCtx.getImageData(0, 0, sw, sh).data, sw, sh, full, width, height, MASK_THRESHOLD);
     },
     mask: () => (latest ? full : null), // null until the model has produced a first result
     close: () => seg.close(),

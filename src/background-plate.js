@@ -6,7 +6,10 @@ const BLEND = 0.15;
 const FILL_EVERY = 4; // updates between inpaint recomputes
 
 export class BackgroundPlate {
-  constructor(width, height) {
+  // A pixel only counts as background once it has been clear of the person mask for
+  // `minBackgroundFrames` frames in a row, so a segmentation hiccup can't bake the person in.
+  constructor(width, height, { minBackgroundFrames = 20 } = {}) {
+    this.minBackgroundFrames = minBackgroundFrames;
     this.reset(width, height);
   }
 
@@ -16,6 +19,7 @@ export class BackgroundPlate {
     this.plate = new Float32Array(width * height * 4);
     this.out = new Uint8ClampedArray(width * height * 4);
     this.seen = new Uint8Array(width * height);
+    this.run = new Uint8Array(width * height); // consecutive frames clear of the mask
     this.seenCount = 0;
     this.updates = 0;
     this.filledAt = 0;
@@ -25,18 +29,20 @@ export class BackgroundPlate {
 
   update(rgba, mask) {
     this.updates++;
-    const { plate, seen } = this;
+    const { plate, seen, run, minBackgroundFrames } = this;
     for (let i = 0; i < seen.length; i++) {
-      if (mask[i]) continue;
+      if (mask[i]) { run[i] = 0; continue; }
+      if (run[i] < 255) run[i]++;
       const o = i * 4;
       if (!seen[i]) {
+        if (run[i] < minBackgroundFrames) continue;
         plate[o] = rgba[o];
         plate[o + 1] = rgba[o + 1];
         plate[o + 2] = rgba[o + 2];
         plate[o + 3] = 255;
         seen[i] = 1;
         this.seenCount++;
-      } else {
+      } else if (run[i] >= Math.min(3, minBackgroundFrames)) {
         plate[o] += (rgba[o] - plate[o]) * BLEND;
         plate[o + 1] += (rgba[o + 1] - plate[o + 1]) * BLEND;
         plate[o + 2] += (rgba[o + 2] - plate[o + 2]) * BLEND;

@@ -8,6 +8,11 @@
 </style>
 <video id="v" autoplay muted playsinline></video>
 <div id="log">starting…</div>
+<div id="dbg" style="display:none;margin-top:12px">
+  <div style="color:#9a8f86;margin-bottom:6px">debug: left = mask in red (what is hidden), right = background memory (what replaces you)</div>
+  <canvas id="dm" style="width:320px"></canvas> <canvas id="dp" style="width:320px"></canvas>
+  <div id="dstat" style="white-space:pre;color:#9a8f86;margin-top:6px"></div>
+</div>
 <script>
   const log = (m) => (document.getElementById('log').textContent = m);
   navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((s) => {
@@ -28,4 +33,23 @@
       });
     })();
   }).catch((e) => log('getUserMedia failed: ' + e.message));
+  if (location.hash.includes('debug')) {
+    document.getElementById('dbg').style.display = 'block';
+    setInterval(() => {
+      const d = window.__thanosSnapDebug, p = d && d.pipeline;
+      if (!p) return;
+      const w = d.width, h = d.height, v = document.getElementById('v');
+      const m = document.getElementById('dm'), q = document.getElementById('dp');
+      m.width = q.width = w; m.height = q.height = h;
+      const mc = m.getContext('2d'), qc = q.getContext('2d');
+      mc.drawImage(v, 0, 0, w, h);
+      const img = mc.getImageData(0, 0, w, h), hid = p.hidden;
+      for (let i = 0; i < hid.length; i++) if (hid[i]) { img.data[i * 4] = 255; img.data[i * 4 + 1] *= 0.4; img.data[i * 4 + 2] *= 0.4; }
+      mc.putImageData(img, 0, 0);
+      qc.putImageData(new ImageData(new Uint8ClampedArray(p.plate.read()), w, h), 0, 0);
+      let hidN = 0; for (let i = 0; i < hid.length; i++) hidN += hid[i];
+      document.getElementById('dstat').textContent =
+        `state ${p.state}   hidden ${(100 * hidN / hid.length).toFixed(1)}%   background known ${(100 * p.plate.coverage()).toFixed(1)}%`;
+    }, 250);
+  }
 </script>

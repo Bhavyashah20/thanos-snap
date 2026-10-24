@@ -74,6 +74,13 @@ export async function createRunner(realStream, { assetBase }) {
   }
   schedule();
 
+  // Debug hook for test-page/index.html#debug (reads the live pipeline; no effect on the output).
+  window.__thanosSnapDebug = {
+    get pipeline() { return pipeline; },
+    get width() { return width; },
+    get height() { return height; },
+  };
+
   const outStream = dst.captureStream(30);
   return {
     videoTrack: outStream.getVideoTracks()[0],

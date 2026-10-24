@@ -23,8 +23,11 @@ function dilate(mask, width, height, r, tmp, out) {
   sweep(tmp, out, height, width, width, 1);
 }
 
+const HOLD_FRAMES = 8; // keep hiding a region for ~0.27s after the mask last covered it
+
 export class Pipeline {
-  constructor({ segment, width, height, durationMs = 1700, returnMs = 600 }) {
+  constructor({ segment, width, height, durationMs = 1700, returnMs = 600, minBackgroundFrames = 20 }) {
+    this.minBackgroundFrames = minBackgroundFrames;
     this.segment = segment;
     this.durationMs = durationMs;
     this.returnMs = returnMs;
@@ -38,10 +41,12 @@ export class Pipeline {
   resize(width, height) {
     this.width = width;
     this.height = height;
-    this.plate = new BackgroundPlate(width, height);
+    this.plate = new BackgroundPlate(width, height, { minBackgroundFrames: this.minBackgroundFrames });
     this.dust = null;
     this.tmp = new Uint8Array(width * height);
     this.grown = new Uint8Array(width * height);
+    this.hold = new Uint8Array(width * height);
+    this.hidden = new Uint8Array(width * height);
     this._state = 'present';
   }
 
@@ -61,7 +66,12 @@ export class Pipeline {
     if (!mask) return out.set(rgba); // segmenter not ready yet: show the camera, learn nothing
     // The mask is upsampled from a small image, so its edges are blocky: grow it with the frame size.
     dilate(mask, width, height, Math.max(3, Math.round(width / 80)), this.tmp, grown);
-    this.plate.update(rgba, grown);
+    const { hold, hidden } = this;
+    for (let i = 0; i < grown.length; i++) {
+      hold[i] = grown[i] ? HOLD_FRAMES : hold[i] > 0 ? hold[i] - 1 : 0;
+      hidden[i] = hold[i] > 0 ? 1 : 0;
+    }
+    this.plate.update(rgba, hidden);
 
     if (this._state === 'dusting' && !this.dust) {
       if (!grown.includes(1)) this._state = 'present'; // nobody to snap away
@@ -82,8 +92,8 @@ export class Pipeline {
 
     const plate = this.plate.read();
     const a = this._state === 'returning' ? (nowMs - this.returnStartMs) / this.returnMs : 0;
-    for (let i = 0; i < grown.length; i++) {
-      if (!grown[i]) continue;
+    for (let i = 0; i < hidden.length; i++) {
+      if (!hidden[i]) continue;
       const o = i * 4;
       out[o] = plate[o] + (rgba[o] - plate[o]) * a;
       out[o + 1] = plate[o + 1] + (rgba[o + 1] - plate[o + 1]) * a;
