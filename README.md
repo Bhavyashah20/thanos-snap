@@ -2,6 +2,10 @@
 
 A Chrome extension: **snap your fingers and you turn to dust on your webcam**, like the Infinity War snap. Everyone else in the call sees the empty room.
 
+![Demo: the person turns to ash, the empty room is left behind, then they fade back in](docs/demo.gif)
+
+*The demo above is rendered with the extension's own effect code (captured room, dust dissolve, lighting match, return) on a drawn room and a cartoon person, not a screen recording of a real call. Regenerate it with `node scripts/render-demo.mjs` (needs `ffmpeg`); an MP4 copy is in [docs/demo.mp4](docs/demo.mp4).*
+
 It works on video calls that run in a Chrome tab (tested on Google Meet) by replacing your camera feed before the page receives it. Everything runs locally in your browser; no video or audio leaves your machine.
 
 ## How it works
@@ -51,4 +55,4 @@ Layout: `src/` is the extension (pure, tested modules plus thin browser glue), `
 
 ## Credits and licence
 
-Not affiliated with Marvel or Disney; the effect is inspired by a film scene and no footage is included. Uses [MediaPipe](https://github.com/google-ai-edge/mediapipe) selfie segmentation (Apache-2.0), [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) (MIT) and, optionally, [MI-GAN](https://github.com/Picsart-AI-Research/MI-GAN) (MIT, Picsart AI Research) via a third-party ONNX conversion. No licence has been chosen for this repository's own code yet.
+Not affiliated with Marvel or Disney; the effect is inspired by a film scene and no footage is included. Uses [MediaPipe](https://github.com/google-ai-edge/mediapipe) selfie segmentation (Apache-2.0), [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) (MIT) and, optionally, [MI-GAN](https://github.com/Picsart-AI-Research/MI-GAN) (MIT, Picsart AI Research) via a third-party ONNX conversion. This repository's own code is licensed under the [Apache License 2.0](LICENSE); see [NOTICE](NOTICE).

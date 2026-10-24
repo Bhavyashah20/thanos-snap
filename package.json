@@ -13,5 +13,12 @@
   },
   "dependencies": {
     "onnxruntime-web": "^1.30.0"
+  },
+  "license": "Apache-2.0",
+  "author": "Bhavya Shah <bhavyashah0084@gmail.com>",
+  "description": "Chrome extension: snap your fingers and turn to dust on your webcam",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bhavyashah20/thanos-snap.git"
   }
 }

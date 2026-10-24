@@ -1,0 +1,12 @@
+Thanos Snap
+Copyright 2026 Bhavya Shah <bhavyashah0084@gmail.com>
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product includes software developed by third parties:
+- MediaPipe (Google), Apache-2.0: https://github.com/google-ai-edge/mediapipe
+- ONNX Runtime Web (Microsoft), MIT: https://github.com/microsoft/onnxruntime
+- MI-GAN (Picsart AI Research), MIT, used optionally via a third-party ONNX conversion (not included in this repository):
+  https://github.com/Picsart-AI-Research/MI-GAN
+
+Not affiliated with Marvel or Disney. The effect is inspired by a film scene; no footage is included.
