@@ -34,7 +34,7 @@ test('progress only advances while the person is out of view (area under half of
   u(c, 2000, 0.4); // person present: baseline area 0.4
   u(c, 3000, 0.4); // begin
   assert.deepStrictEqual(u(c, 3500, 0.4), { phase: 'capturing', progress: 0, accepting: false }, 'still there');
-  assert.deepStrictEqual(u(c, 3600, 0.05), { phase: 'capturing', progress: 0, accepting: true }, 'left: starts counting');
+  assert.deepStrictEqual(u(c, 3600, 0.05), { phase: 'capturing', progress: 0, accepting: true, restart: true }, 'left: starts counting');
   const mid = u(c, 4350, 0.05);
   assert.strictEqual(mid.accepting, true);
   assert.ok(Math.abs(mid.progress - 0.5) < 0.01, `progress=${mid.progress}`);
@@ -82,4 +82,14 @@ test('start while active restarts the countdown; cancel goes inactive', () => {
   assert.deepStrictEqual(c.start(2100), { phase: 'countdown', countdown: 3 });
   c.cancel();
   assert.strictEqual(c.active, false);
+});
+
+test('each new clean window asks the pipeline to restart staging; interruptions restart it again', () => {
+  const c = mk();
+  c.start(0);
+  u(c, 2000, 0.4); u(c, 3000, 0.4);
+  assert.strictEqual(u(c, 3100, 0.05).restart, true, 'first clean frame');
+  assert.strictEqual(u(c, 3200, 0.05).restart, undefined, 'same window');
+  u(c, 3300, 0.4); // came back into view
+  assert.strictEqual(u(c, 3400, 0.05).restart, true, 'new window');
 });

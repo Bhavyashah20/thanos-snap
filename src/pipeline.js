@@ -1,5 +1,6 @@
 import { BackgroundPlate } from './background-plate.js';
 import { DustEffect } from './dust.js';
+import { refineMask } from './refine.js';
 
 
 // Grow a 0/1 mask by `r` pixels (separable, O(n)); hides the soft edge of an imperfect segmentation.
@@ -47,10 +48,13 @@ export class Pipeline {
     this.grown = new Uint8Array(width * height);
     this.hold = new Uint8Array(width * height);
     this.hidden = new Uint8Array(width * height);
+    this.refined = new Uint8Array(width * height);
     this.noMask = null;
     this.maskArea = 0;
     this.stage = null;
     this.roomSource = 'learned'; // 'captured' once "Capture empty room" has completed
+    this.baseArea = 0;
+    this.baseFrame = this.baseMask = null;
     this._state = 'present';
   }
 
@@ -60,13 +64,45 @@ export class Pipeline {
     this.stage = new BackgroundPlate(this.width, this.height, { minBackgroundFrames: 1 });
   }
 
+  // While the person is in view (countdown), remember the frame where they cover the most picture.
+  noteBaseline(rgba) {
+    if (this.maskArea <= this.baseArea) return;
+    this.baseArea = this.maskArea;
+    this.baseFrame = Uint8ClampedArray.from(rgba);
+    this.baseMask = Uint8Array.from(this.grown);
+  }
+
+  resetBaseline() {
+    this.baseArea = 0;
+    this.baseFrame = this.baseMask = null;
+  }
+
   captureFrame(rgba) {
     if (this.stage) this.stage.update(rgba, this.noMask || (this.noMask = new Uint8Array(this.width * this.height)));
   }
 
+  // Swap the staged room in. Returns false (and keeps the old room) if the captured room still looks
+  // like the person at the spot where they were seen, i.e. they never really left.
   commitCapture() {
-    if (this.stage) { this.plate = this.stage; this.roomSource = 'captured'; }
+    const stage = this.stage;
     this.stage = null;
+    if (!stage) return false;
+    if (this.baseFrame && this.baseArea >= 0.02) {
+      const { baseFrame: f, baseMask: m } = this;
+      const room = stage.plate;
+      let region = 0, changed = 0;
+      for (let i = 0; i < m.length; i++) {
+        if (!m[i]) continue;
+        region++;
+        const o = i * 4;
+        const d = Math.max(Math.abs(room[o] - f[o]), Math.abs(room[o + 1] - f[o + 1]), Math.abs(room[o + 2] - f[o + 2]));
+        if (d > 18) changed++;
+      }
+      if (changed / region < 0.4) return false;
+    }
+    this.plate = stage;
+    this.roomSource = 'captured';
+    return true;
   }
 
   abortCapture() {
@@ -89,6 +125,11 @@ export class Pipeline {
     if (!mask) return out.set(rgba); // segmenter not ready yet: show the camera, learn nothing
     // The mask is upsampled from a small image, so its edges are blocky: grow it with the frame size.
     dilate(mask, width, height, Math.max(3, Math.round(width / 80)), this.tmp, grown);
+    if (this.roomSource === 'captured' && !this.stage) {
+      // With a real picture of the empty room, whatever differs from it and touches the person is the person.
+      refineMask(rgba, this.plate.read(), this.plate.seen, grown, width, height, this.refined);
+      dilate(this.refined, width, height, 3, this.tmp, grown);
+    }
     const { hold, hidden } = this;
     let covered = 0;
     for (let i = 0; i < grown.length; i++) {

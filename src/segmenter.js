@@ -17,7 +17,7 @@ export async function createSegmenter({ assetBase, width, height }) {
   const full = new Uint8Array(width * height);
 
   const seg = new SelfieSegmentation({ locateFile: (f) => assetBase + f });
-  seg.setOptions({ modelSelection: 1 });
+  seg.setOptions({ modelSelection: 1 }); // landscape model: the general model (0) left a sliver of head visible at the frame top in e2e
   let latest = null;
   seg.onResults((r) => { latest = r.segmentationMask; });
   await seg.initialize();

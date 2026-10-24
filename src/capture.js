@@ -39,8 +39,9 @@ export class CaptureController {
     }
 
     const gone = maskArea <= Math.max(MIN_AREA, 0.5 * this.baseline);
+    let restart = false;
     if (!gone) this.goodSince = null;
-    else if (this.goodSince === null) this.goodSince = nowMs;
+    else if (this.goodSince === null) { this.goodSince = nowMs; restart = true; }
     const progress = this.goodSince === null ? 0 : Math.min(1, (nowMs - this.goodSince) / this.goodMs);
 
     if (progress >= 1) {
@@ -51,6 +52,6 @@ export class CaptureController {
       this.active = false;
       return { phase: 'failed', reason: 'person-in-frame', progress };
     }
-    return { phase: 'capturing', progress, accepting: gone };
+    return restart ? { phase: 'capturing', progress, accepting: gone, restart } : { phase: 'capturing', progress, accepting: gone };
   }
 }

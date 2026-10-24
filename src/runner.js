@@ -64,10 +64,11 @@ export async function createRunner(realStream, { assetBase }) {
       const now = performance.now();
       pipeline.processFrame(frame.data, outImg.data, now);
       if (capture.active) {
-        const ev = capture.update(now, pipeline.maskArea);
-        if (ev.begin) pipeline.beginCapture();
+        let ev = capture.update(now, pipeline.maskArea);
+        if (ev.phase === 'countdown') pipeline.noteBaseline(frame.data);
+        if (ev.begin || ev.restart) pipeline.beginCapture(); // restart: only the current clean window counts
         if (ev.accepting) pipeline.captureFrame(frame.data);
-        if (ev.phase === 'done') pipeline.commitCapture();
+        if (ev.phase === 'done' && !pipeline.commitCapture()) ev = { phase: 'failed', reason: 'person-in-frame', progress: 1 };
         if (ev.phase === 'failed') pipeline.abortCapture();
         onCaptureEvent(ev);
       }
@@ -102,6 +103,7 @@ export async function createRunner(realStream, { assetBase }) {
       onCaptureEvent = onEvent;
       if (!pipeline) return onEvent({ phase: 'failed', reason: 'not-ready' });
       if (pipeline.state !== 'present') return onEvent({ phase: 'failed', reason: 'not-present' });
+      pipeline.resetBaseline();
       onEvent(capture.start(performance.now()));
     },
     stop() {

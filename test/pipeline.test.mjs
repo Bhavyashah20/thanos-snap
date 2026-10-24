@@ -177,3 +177,50 @@ test('maskArea reports the fraction of the picture covered by the person', () =>
   assert.ok(Math.abs(p.maskArea - ((R1.x1 - R1.x0) * (R1.y1 - R1.y0)) / (W * H)) < 0.2, `maskArea=${p.maskArea}`);
   assert.ok(p.maskArea > 0);
 });
+
+test('commitCapture rejects a capture in which the person never left the spot they were seen in', () => {
+  const { p, step } = make([]);
+  for (let t = 0; t < 10; t++) step(t * 33, []);
+  step(400, [R1]); // person present: baseline
+  p.noteBaseline(frameWith([R1]));
+  p.beginCapture();
+  for (let i = 0; i < 20; i++) p.captureFrame(frameWith([R1])); // still standing there
+  assert.strictEqual(p.commitCapture(), false);
+  assert.strictEqual(p.roomSource, 'learned');
+});
+
+test('commitCapture accepts a capture where the baseline area now shows something else', () => {
+  const { p, step } = make([]);
+  for (let t = 0; t < 10; t++) step(t * 33, []);
+  step(400, [R1]);
+  p.noteBaseline(frameWith([R1]));
+  p.beginCapture();
+  for (let i = 0; i < 20; i++) p.captureFrame(frameWith([]));
+  assert.strictEqual(p.commitCapture(), true);
+  assert.strictEqual(p.roomSource, 'captured');
+});
+
+test('commitCapture accepts when nobody was in view at the start (no baseline)', () => {
+  const { p } = make([]);
+  p.beginCapture();
+  p.captureFrame(frameWith([]));
+  assert.strictEqual(p.commitCapture(), true);
+});
+
+test('with a captured room, a limb the model missed is still hidden when gone', () => {
+  const ARM = { x0: 32, x1: 38, y0: 20, y1: 30 }; // touches R1's right edge; the model mask will not include it
+  let current = [];
+  const p = new Pipeline({ width: W, height: H, durationMs: 1000, minBackgroundFrames: 1, segment: () => maskOf(current) });
+  const out = new Uint8ClampedArray(W * H * 4);
+  p.beginCapture();
+  for (let i = 0; i < 5; i++) p.captureFrame(frameWith([]));
+  assert.strictEqual(p.commitCapture(), true);
+  const run = (t) => { current = [R1]; p.processFrame(frameWith([R1, ARM]), out, t); };
+  run(0);
+  p.trigger(10);
+  run(33);
+  run(2000);
+  assert.strictEqual(p.state, 'gone');
+  assert.deepStrictEqual(px(out, 35, 25), BG, 'arm hidden');
+  assert.deepStrictEqual(px(out, 24, 24), BG, 'body hidden');
+});
