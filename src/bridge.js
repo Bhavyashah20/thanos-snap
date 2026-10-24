@@ -1,10 +1,11 @@
 // Isolated-world relay: the page (MAIN world) can't read chrome.storage or runtime URLs.
-const DEFAULTS = { enabled: true, sensitivity: 0.5 };
+const DEFAULTS = { enabled: true, sensitivity: 0.5, mlFill: false };
 const post = (settings) => window.postMessage({ source: 'snap-ext', settings }, '*');
 const assetBase = chrome.runtime.getURL('mediapipe/');
+const baseUrl = chrome.runtime.getURL(''); // extension root, for models/ and ort/
 
 async function sendAll() {
-  post({ ...(await chrome.storage.local.get(DEFAULTS)), assetBase });
+  post({ ...(await chrome.storage.local.get(DEFAULTS)), assetBase, baseUrl });
 }
 sendAll();
 chrome.storage.onChanged.addListener(sendAll);

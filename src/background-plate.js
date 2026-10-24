@@ -24,6 +24,8 @@ export class BackgroundPlate {
     this.updates = 0;
     this.filledAt = 0;
     this.filled = null;
+    this.mlFill = null; // optional ML inpainting of the unseen pixels, blended in by mlWeight
+    this.mlWeight = 0;
     this.dirty = true;
     this.inpainter = new Inpainter(width, height);
   }
@@ -54,6 +56,12 @@ export class BackgroundPlate {
 
   // The plate as bytes. Never-seen pixels (the person has covered them since the start) are
   // inpainted from the surrounding colours; that fill is recomputed every few updates, not every read.
+  setMlFill(rgba, weight) {
+    this.mlFill = rgba;
+    this.mlWeight = weight;
+    this.dirty = true;
+  }
+
   read() {
     const { out, seen } = this;
     if (this.seenCount === seen.length) {
@@ -65,11 +73,19 @@ export class BackgroundPlate {
       this.inpainter.fill(this.plate, seen, this.filled || (this.filled = new Uint8ClampedArray(out.length)));
       this.filledAt = this.updates;
     }
-    const { filled } = this;
+    const { filled, mlFill, mlWeight: a } = this;
+    const useMl = mlFill && a > 0;
     for (let i = 0; i < seen.length; i++) {
       if (seen[i]) continue;
       const o = i * 4;
-      out[o] = filled[o]; out[o + 1] = filled[o + 1]; out[o + 2] = filled[o + 2]; out[o + 3] = 255;
+      if (useMl) {
+        out[o] = filled[o] + (mlFill[o] - filled[o]) * a;
+        out[o + 1] = filled[o + 1] + (mlFill[o + 1] - filled[o + 1]) * a;
+        out[o + 2] = filled[o + 2] + (mlFill[o + 2] - filled[o + 2]) * a;
+      } else {
+        out[o] = filled[o]; out[o + 1] = filled[o + 1]; out[o + 2] = filled[o + 2];
+      }
+      out[o + 3] = 255;
     }
     return out;
   }

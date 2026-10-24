@@ -2,7 +2,7 @@ import { wrapGetUserMedia } from './gum-wrapper.js';
 import { createRunner } from './runner.js';
 import { startAudioTrigger } from './audio-trigger.js';
 
-const settings = { enabled: true, sensitivity: 0.5, assetBase: null };
+const settings = { enabled: true, sensitivity: 0.5, mlFill: false, assetBase: null, baseUrl: null };
 const detectors = new Set();
 const runners = new Set();
 const report = (event) => window.postMessage({ source: 'snap-ext-page', type: 'capture', ...event }, '*');
@@ -27,7 +27,7 @@ if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     getSettings: () => settings,
     createRunner: async (real) => {
       await Promise.race([ready, new Promise((_, rej) => setTimeout(() => rej(new Error('no settings from bridge')), 3000))]);
-      const runner = await createRunner(real, { assetBase: settings.assetBase });
+      const runner = await createRunner(real, { assetBase: settings.assetBase, baseUrl: settings.baseUrl, isMlEnabled: () => settings.mlFill });
       runners.add(runner);
       const stop = runner.stop;
       runner.stop = () => { runners.delete(runner); stop(); };

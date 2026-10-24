@@ -243,3 +243,72 @@ test('gone: the pasted background is matched to the live lighting (no seam after
   assert.ok(Math.abs(g - 120) <= 4, `hidden area green=${g}, live wall green=${px(out, 5, 5)[1]}`);
   assert.ok(Math.abs(px(out, 5, 5)[1] - g) <= 4, 'no seam between pasted and live');
 });
+
+function mlSetup(opts = {}) {
+  const calls = [];
+  let resolveMl;
+  const mlInpaint = (rgba, seen, w, h) => { calls.push({ rgba, seen, w, h }); return new Promise((res, rej) => { resolveMl = { res, rej }; }); };
+  let current = [R1];
+  const p = new Pipeline({ width: W, height: H, durationMs: 1000, minBackgroundFrames: 1, segment: () => maskOf(current), mlInpaint, ...opts });
+  const out = new Uint8ClampedArray(W * H * 4);
+  const run = (t, r = current) => { current = r; p.processFrame(frameWith(r), out, t); };
+  return { p, out, run, calls, ml: () => resolveMl };
+}
+const mlColour = (c) => { const a = new Uint8ClampedArray(W * H * 4); for (let i = 0; i < W * H; i++) a.set([...c, 255], i * 4); return a; };
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+test('ML inpainting: requested once on snap when the learned room has holes, with the unseen mask', async () => {
+  const { p, run, calls } = mlSetup();
+  for (let t = 0; t < 5; t++) run(t * 33);        // person stands in R1 the whole time: those pixels are never seen
+  p.trigger(200);
+  run(233);
+  p.trigger(300); // ignored (dusting)
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].w, W);
+  const unseen = calls[0].seen.reduce((n, v) => n + (v ? 0 : 1), 0);
+  assert.ok(unseen > 0 && unseen < W * H);
+});
+
+test('ML inpainting: not requested when the room was captured or has no holes', async () => {
+  const a = mlSetup();
+  a.p.beginCapture(); a.p.captureFrame(frameWith([])); a.p.commitCapture();
+  a.run(0); a.p.trigger(10); a.run(40);
+  assert.strictEqual(a.calls.length, 0, 'captured');
+  const b = mlSetup();
+  for (let t = 0; t < 5; t++) b.run(t * 33, []); // empty room fully learned
+  b.run(200, [R1]); b.p.trigger(210); b.run(240);
+  assert.strictEqual(b.calls.length, 0, 'fully seen');
+});
+
+test('ML inpainting: the result fills the hidden area once it arrives; a failure is ignored', async () => {
+  const { p, out, run, calls, ml } = mlSetup();
+  for (let t = 0; t < 5; t++) run(t * 33);
+  p.trigger(200);
+  run(233);
+  ml().res(mlColour([10, 200, 30]));
+  await tick();
+  run(1500); run(2300); run(2400);
+  assert.strictEqual(p.state, 'gone');
+  assert.deepStrictEqual(px(out, 24, 24), [10, 200, 30], 'ML colour fills where the person was');
+  void calls;
+  const f = mlSetup();
+  for (let t = 0; t < 5; t++) f.run(t * 33);
+  f.p.trigger(200); f.run(233);
+  f.ml().rej(new Error('model failed'));
+  await tick();
+  f.run(2400); f.run(2500);
+  assert.strictEqual(f.p.state, 'gone'); // no crash; smooth fill is used
+});
+
+test('ML inpainting: not requested while the setting is off; requested once it is on', async () => {
+  let on = false;
+  const { p, run, calls } = mlSetup({ mlEnabled: () => on });
+  for (let t = 0; t < 5; t++) run(t * 33);
+  p.trigger(200); run(233);
+  assert.strictEqual(calls.length, 0, 'off: no request');
+  assert.strictEqual(p.mlRequested, false, 'off: the one-shot request is not used up');
+  on = true;
+  // the state machine is mid-dissolve, so ask directly the way trigger() does on the next snap
+  p.requestMlFill();
+  assert.strictEqual(calls.length, 1, 'on: requested');
+});

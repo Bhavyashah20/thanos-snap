@@ -11,4 +11,7 @@ for (const [entry, out] of entries) {
 cpSync('manifest.json', 'dist/manifest.json');
 if (existsSync('popup/popup.html')) cpSync('popup/popup.html', 'dist/popup/popup.html');
 cpSync('node_modules/@mediapipe/selfie_segmentation', 'dist/mediapipe', { recursive: true });
+if (existsSync('models')) cpSync('models', 'dist/models', { recursive: true });
+mkdirSync('dist/ort', { recursive: true });
+for (const f of ['ort-wasm-simd-threaded.mjs', 'ort-wasm-simd-threaded.wasm']) cpSync(`node_modules/onnxruntime-web/dist/${f}`, `dist/ort/${f}`);
 console.log('built dist/');

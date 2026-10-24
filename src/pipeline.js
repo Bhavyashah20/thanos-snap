@@ -28,7 +28,10 @@ function dilate(mask, width, height, r, tmp, out) {
 const HOLD_FRAMES = 8; // keep hiding a region for ~0.27s after the mask last covered it
 
 export class Pipeline {
-  constructor({ segment, width, height, durationMs = 1700, returnMs = 600, minBackgroundFrames = 20 }) {
+  // mlInpaint(rgba, seen, w, h) -> Promise<RGBA>: optional; fills what the camera never saw behind the person.
+  constructor({ segment, width, height, durationMs = 1700, returnMs = 600, minBackgroundFrames = 20, mlInpaint = null, mlEnabled = () => true }) {
+    this.mlInpaint = mlInpaint;
+    this.mlEnabled = mlEnabled;
     this.minBackgroundFrames = minBackgroundFrames;
     this.segment = segment;
     this.durationMs = durationMs;
@@ -56,6 +59,9 @@ export class Pipeline {
     this.maskArea = 0;
     this.stage = null;
     this.roomSource = 'learned'; // 'captured' once "Capture empty room" has completed
+    this.mlRequested = false;
+    this.mlResult = null;
+    this.mlStartMs = null;
     this.baseArea = 0;
     this.baseFrame = this.baseMask = null;
     this._state = 'present';
@@ -104,6 +110,7 @@ export class Pipeline {
       if (changed / region < 0.4) return false;
     }
     this.plate = stage;
+    this.mlStartMs = null;
     this.roomSource = 'captured';
     return true;
   }
@@ -112,10 +119,22 @@ export class Pipeline {
     this.stage = null;
   }
 
+  // Snap without a captured room: ask the model to invent what is behind the person, in the background
+  // (it arrives during the dissolve; until then the smooth fill is used).
+  requestMlFill() {
+    const { mlInpaint, plate } = this;
+    if (!mlInpaint || !this.mlEnabled() || this.mlRequested || this.roomSource === 'captured' || plate.coverage() >= 0.999) return;
+    this.mlRequested = true;
+    Promise.resolve(mlInpaint(Uint8ClampedArray.from(plate.read()), Uint8Array.from(plate.seen), this.width, this.height))
+      .then((rgba) => { if (rgba && this.plate === plate) { this.mlResult = rgba; this.mlStartMs = -1; } })
+      .catch((err) => console.warn('[thanos-snap] ML inpainting failed; keeping the smooth fill', err));
+  }
+
   trigger(nowMs) {
     if (this._state === 'present') {
       this._state = 'dusting';
       this.dust = null; // started on the next frame, from that frame's pixels
+      this.requestMlFill();
     } else if (this._state === 'gone') {
       this._state = 'returning';
       this.returnStartMs = nowMs;
@@ -141,6 +160,8 @@ export class Pipeline {
       hidden[i] = hold[i] > 0 ? 1 : 0;
     }
     this.maskArea = covered / grown.length;
+    if (this.mlStartMs === -1) { this.mlStartMs = nowMs; this.plate.setMlFill(this.mlResult, 0); }
+    else if (this.mlStartMs !== null && this.plate.mlWeight < 1) this.plate.setMlFill(this.mlResult, Math.min(1, (nowMs - this.mlStartMs) / 400));
     // A captured room stays as captured (Relight handles lighting changes); a learned one keeps learning.
     if (this.roomSource !== 'captured') this.plate.update(rgba, hidden);
 

@@ -107,3 +107,19 @@ test('one empty-mask frame does not bake the person into the background', () => 
   const out = p.read();
   assert.ok(out[0] > 150, `person pixel baked in as ${out[0]}`);
 });
+
+test('an ML fill replaces the smooth fill for unseen pixels only, and blends with its weight', () => {
+  const p = new BackgroundPlate(W, H, { minBackgroundFrames: 1 });
+  const mask = new Uint8Array(W * H); mask[1] = 1;
+  p.update(solid(100, 100, 100), mask); // pixel 1 unseen -> smooth fill gives ~100
+  const ml = solid(200, 50, 0);
+  p.setMlFill(ml, 1);
+  let out = p.read();
+  assert.deepStrictEqual([out[4], out[5], out[6]], [200, 50, 0], 'unseen pixel takes the ML colour');
+  assert.deepStrictEqual([out[0], out[1], out[2]], [100, 100, 100], 'seen pixel untouched');
+  p.setMlFill(ml, 0.5);
+  out = p.read();
+  assert.ok(Math.abs(out[4] - 150) <= 3, `half weight=${out[4]}`);
+  p.setMlFill(null, 0);
+  assert.ok(Math.abs(p.read()[4] - 100) <= 2);
+});
