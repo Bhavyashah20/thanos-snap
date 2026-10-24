@@ -2,9 +2,9 @@
 
 A Chrome extension: **snap your fingers and you turn to dust on your webcam**, like the Infinity War snap. Everyone else in the call sees the empty room.
 
-![Demo: the person turns to ash, the empty room is left behind, then they fade back in](docs/demo.gif)
+[![Demo: a one-word hook, then the person turns to ash, the empty room is left behind, and they fade back in](docs/demo/demo.gif)](docs/demo/demo.mp4)
 
-*The demo above is rendered with the extension's own effect code (captured room, dust dissolve, lighting match, return) on a drawn room and a cartoon person, not a screen recording of a real call. Regenerate it with `node scripts/render-demo.mjs` (needs `ffmpeg`); an MP4 copy is in [docs/demo.mp4](docs/demo.mp4).*
+*An 11-second demo (click for the MP4). The footage is not a screen recording of a real call: it is the extension's own effect code (captured room, dust dissolve, lighting match, return) running on a drawn room and a cartoon person, and the video labels it as such. Cut with [Hyperframes](https://github.com/heygen-com/hyperframes); the footage regenerates with `node scripts/render-demo.mjs --out clip.mp4` (needs `ffmpeg`).*
 
 It works on video calls that run in a Chrome tab (tested on Google Meet) by replacing your camera feed before the page receives it. Everything runs locally in your browser; no video or audio leaves your machine.
 

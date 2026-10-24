@@ -1,15 +1,19 @@
-// Renders docs/demo.gif and docs/demo.mp4 by driving the extension's real effect code (Pipeline: captured room,
-// dust dissolve, lighting match, return) over a synthetic scene: a drawn room and a cartoon person whose exact
-// outline is used as the "segmentation". No camera, no film footage, no real face.
-//   node scripts/render-demo.mjs
+// Renders the demo footage by driving the extension's real effect code (Pipeline: captured room, dust dissolve,
+// lighting match, return) over a synthetic scene: a drawn room and a cartoon person whose exact outline is used
+// as the "segmentation". No camera, no film footage, no real face.
+//   node scripts/render-demo.mjs [--out clip.mp4] [--gif clip.gif]   (needs ffmpeg)
 import { Pipeline } from '../src/pipeline.js';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync, rmSync, mkdtempSync, appendFileSync } from 'node:fs';
+import { writeFileSync, rmSync, mkdtempSync, appendFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 
-const W = 640, H = 360, FPS = 30, SECONDS = 6.6;
-const SNAP1 = 1.3, SNAP2 = 4.6; // seconds
+const arg = (name, def) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : def; };
+const OUT_MP4 = arg('--out', 'docs/demo/clip.mp4');
+const OUT_GIF = arg('--gif', null);
+const W = 1280, H = 720, FPS = 30, SECONDS = 5.0;
+const S = W / 640; // the scene is drawn in 640x360 units and scaled
+const SNAP1 = 0.7, SNAP2 = 3.7; // seconds: dissolve 0.7-2.4, empty room 2.4-3.7, return 3.7-4.3
 
 const clamp = (v) => (v < 0 ? 0 : v > 255 ? 255 : v);
 const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -72,7 +76,7 @@ writeFileSync(raw, '');
 const room = new Uint8ClampedArray(W * H * 4);
 for (let y = 0; y < H; y++)
   for (let x = 0; x < W; x++) {
-    const c = roomColor(x, y), n = noise(x, y) * 3;
+    const c = roomColor(x / S, y / S), n = noise(x, y) * 3;
     room.set([clamp(c[0] + n), clamp(c[1] + n), clamp(c[2] + n), 255], (y * W + x) * 4);
   }
 
@@ -88,12 +92,12 @@ const total = Math.round(SECONDS * FPS);
 let fired1 = false, fired2 = false;
 for (let i = 0; i < total; i++) {
   const t = i / FPS;
-  const cx = 400 + 7 * Math.sin(t * 2.1);
+  const cx = 400 + 7 * Math.sin(t * 2.1); // in 640-space
   frame.set(room);
   mask = new Uint8Array(W * H);
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
-      const c = personColor(x, y, cx);
+      const c = personColor(x / S, y / S, cx);
       if (!c) continue;
       const n = noise(x + 7, y) * 3;
       frame.set([clamp(c[0] + n), clamp(c[1] + n), clamp(c[2] + n), 255], (y * W + x) * 4);
@@ -108,7 +112,8 @@ for (let i = 0; i < total; i++) {
 
 const run = (args) => { const r = spawnSync('ffmpeg', ['-v', 'error', '-y', ...args], { stdio: 'inherit' }); if (r.status) throw new Error('ffmpeg failed'); };
 const input = ['-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${W}x${H}`, '-r', String(FPS), '-i', raw];
-run([...input, '-vf', 'fps=20,scale=480:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128[p];[b][p]paletteuse=dither=bayer:bayer_scale=4', '-loop', '0', 'docs/demo.gif']);
-run([...input, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '22', '-movflags', '+faststart', 'docs/demo.mp4']);
+mkdirSync(dirname(OUT_MP4), { recursive: true });
+run([...input, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '14', '-movflags', '+faststart', OUT_MP4]);
+if (OUT_GIF) run([...input, '-vf', 'fps=20,scale=480:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128[p];[b][p]paletteuse=dither=bayer:bayer_scale=4', '-loop', '0', OUT_GIF]);
 rmSync(raw, { force: true });
-console.log(`rendered ${total} frames -> docs/demo.gif, docs/demo.mp4`);
+console.log(`rendered ${total} frames (${SECONDS}s) -> ${OUT_MP4}`);
