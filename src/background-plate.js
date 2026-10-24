@@ -1,6 +1,9 @@
+import { Inpainter } from './inpaint.js';
+
 // Running model of the empty room: updated only where the mask says "not person",
 // so once the person is removed the plate fills the gap.
 const BLEND = 0.15;
+const FILL_EVERY = 4; // updates between inpaint recomputes
 
 export class BackgroundPlate {
   constructor(width, height) {
@@ -14,9 +17,14 @@ export class BackgroundPlate {
     this.out = new Uint8ClampedArray(width * height * 4);
     this.seen = new Uint8Array(width * height);
     this.seenCount = 0;
+    this.updates = 0;
+    this.filledAt = 0;
+    this.filled = null;
+    this.inpainter = new Inpainter(width, height);
   }
 
   update(rgba, mask) {
+    this.updates++;
     const { plate, seen } = this;
     for (let i = 0; i < seen.length; i++) {
       if (mask[i]) continue;
@@ -36,30 +44,18 @@ export class BackgroundPlate {
     }
   }
 
-  // The plate as bytes. Never-seen pixels (the person has covered them since the start)
-  // are filled from the nearest seen pixel in their row, else from a neighbouring row.
+  // The plate as bytes. Never-seen pixels (the person has covered them since the start) are
+  // inpainted from the surrounding colours; that fill is recomputed every few updates, not every read.
   read() {
-    const { out, width, height, seen } = this;
+    const { out, seen } = this;
     out.set(this.plate); // float -> clamped bytes (rounds)
     if (this.seenCount === seen.length) return out;
-
-    const copyPx = (to, from) => out.copyWithin(to * 4, from * 4, from * 4 + 4);
-    const rowOk = new Uint8Array(height);
-    for (let y = 0; y < height; y++) {
-      const base = y * width;
-      let first = -1;
-      for (let x = 0; x < width; x++) if (seen[base + x]) { first = x; break; }
-      if (first < 0) continue;
-      rowOk[y] = 1;
-      for (let x = 0; x < first; x++) copyPx(base + x, base + first);
-      for (let x = first + 1, last = first; x < width; x++) {
-        if (seen[base + x]) last = x;
-        else copyPx(base + x, base + last);
-      }
+    if (!this.filled || this.updates - this.filledAt >= FILL_EVERY) {
+      this.inpainter.fill(this.plate, seen, this.filled || (this.filled = new Uint8ClampedArray(out.length)));
+      this.filledAt = this.updates;
     }
-    const copyRow = (to, from) => out.copyWithin(to * width * 4, from * width * 4, (from + 1) * width * 4);
-    for (let y = 1; y < height; y++) if (!rowOk[y] && rowOk[y - 1]) { copyRow(y, y - 1); rowOk[y] = 1; }
-    for (let y = height - 2; y >= 0; y--) if (!rowOk[y] && rowOk[y + 1]) { copyRow(y, y + 1); rowOk[y] = 1; }
+    for (let i = 0; i < seen.length; i++)
+      if (!seen[i]) out.set(this.filled.subarray(i * 4, i * 4 + 4), i * 4);
     return out;
   }
 

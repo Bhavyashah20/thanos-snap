@@ -65,3 +65,16 @@ test('read() fills a fully-unseen row from the row above', () => {
   const out = p.read();
   assert.deepStrictEqual([out[W * 4], out[W * 4 + 1], out[W * 4 + 2]], [40, 50, 60]);
 });
+
+test('a hole between two different colours is filled smoothly, not copied from one side', () => {
+  const p = new BackgroundPlate(8, 2);
+  const frame = new Uint8ClampedArray(8 * 2 * 4);
+  for (let y = 0; y < 2; y++) for (let x = 0; x < 8; x++) frame.set([x < 3 ? 200 : 100, 0, 0, 255], (y * 8 + x) * 4);
+  const mask = new Uint8Array(16);
+  for (let y = 0; y < 2; y++) { mask[y * 8 + 3] = 1; mask[y * 8 + 4] = 1; }
+  p.update(frame, mask);
+  const out = p.read();
+  const r3 = out[3 * 4], r4 = out[4 * 4];
+  assert.ok(r3 < 200 && r3 > 100 && r4 < 200 && r4 > 100, `r3=${r3} r4=${r4}`);
+  assert.ok(r3 >= r4, 'monotonic across the hole');
+});

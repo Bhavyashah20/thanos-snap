@@ -121,3 +121,18 @@ test('resize resets to present', () => {
   p.resize(32, 24);
   assert.strictEqual(p.state, 'present');
 });
+
+test('before the segmenter has a mask (null), frames pass through and the plate learns nothing', () => {
+  let ready = false;
+  const p = new Pipeline({ width: W, height: H, durationMs: 1000, segment: () => (ready ? maskOf([R1]) : null) });
+  const out = new Uint8ClampedArray(W * H * 4);
+  const f = frameWith([R1]);
+  p.processFrame(f, out, 0); // person is in frame; mask not ready yet
+  assert.deepStrictEqual(out, f);
+  ready = true;
+  p.trigger(100);
+  p.processFrame(f, out, 133);
+  p.processFrame(f, out, 2000);
+  // the person must NOT have been baked into the background
+  assert.notDeepStrictEqual(px(out, 24, 24), PERSON);
+});

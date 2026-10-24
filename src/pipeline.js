@@ -1,7 +1,6 @@
 import { BackgroundPlate } from './background-plate.js';
 import { DustEffect } from './dust.js';
 
-const DILATE_RADIUS = 3;
 
 // Grow a 0/1 mask by `r` pixels (separable, O(n)); hides the soft edge of an imperfect segmentation.
 function dilate(mask, width, height, r, tmp, out) {
@@ -58,7 +57,10 @@ export class Pipeline {
 
   processFrame(rgba, out, nowMs) {
     const { width, height, grown } = this;
-    dilate(this.segment(rgba), width, height, DILATE_RADIUS, this.tmp, grown);
+    const mask = this.segment(rgba);
+    if (!mask) return out.set(rgba); // segmenter not ready yet: show the camera, learn nothing
+    // The mask is upsampled from a small image, so its edges are blocky: grow it with the frame size.
+    dilate(mask, width, height, Math.max(3, Math.round(width / 80)), this.tmp, grown);
     this.plate.update(rgba, grown);
 
     if (this._state === 'dusting' && !this.dust) {

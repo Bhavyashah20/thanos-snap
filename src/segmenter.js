@@ -30,7 +30,7 @@ export async function createSegmenter({ assetBase, width, height }) {
       maskCtx.drawImage(latest, 0, 0, sw, sh);
       thresholdUpsample(maskCtx.getImageData(0, 0, sw, sh).data, sw, sh, full, width, height);
     },
-    mask: () => full,
+    mask: () => (latest ? full : null), // null until the model has produced a first result
     close: () => seg.close(),
   };
 }
