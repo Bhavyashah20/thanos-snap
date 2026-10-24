@@ -1,5 +1,6 @@
 import { Pipeline } from './pipeline.js';
 import { createSegmenter } from './segmenter.js';
+import { CaptureController } from './capture.js';
 
 // Turns a real camera stream into a processed one. Returns { videoTrack, trigger(), stop() }.
 export async function createRunner(realStream, { assetBase }) {
@@ -35,6 +36,8 @@ export async function createRunner(realStream, { assetBase }) {
 
   let running = true;
   let busy = false;
+  const capture = new CaptureController();
+  let onCaptureEvent = () => {};
   loadSegmenter().catch((err) => console.warn('[thanos-snap] segmenter failed; passing camera through', err));
 
   async function tick() {
@@ -58,7 +61,13 @@ export async function createRunner(realStream, { assetBase }) {
       segmenter.input.getContext('2d').drawImage(video, 0, 0, segmenter.input.width, segmenter.input.height);
       await segmenter.send();
       const frame = srcCtx.getImageData(0, 0, width, height);
-      pipeline.processFrame(frame.data, outImg.data, performance.now());
+      const now = performance.now();
+      pipeline.processFrame(frame.data, outImg.data, now);
+      if (capture.active) {
+        const ev = capture.update(now, pipeline.plate.coverage());
+        if (ev && ev.resetPlate) pipeline.resetBackground();
+        if (ev) onCaptureEvent(ev);
+      }
       dstCtx.putImageData(outImg, 0, 0);
     } catch (err) {
       console.warn('[thanos-snap] frame failed', err);
@@ -84,7 +93,14 @@ export async function createRunner(realStream, { assetBase }) {
   const outStream = dst.captureStream(30);
   return {
     videoTrack: outStream.getVideoTracks()[0],
-    trigger: () => pipeline && pipeline.trigger(performance.now()),
+    trigger: () => pipeline && !capture.active && pipeline.trigger(performance.now()),
+    // Start "Capture empty room"; onEvent gets {phase, countdown?, progress?, reason?} until done/failed.
+    capture(onEvent) {
+      onCaptureEvent = onEvent;
+      if (!pipeline) return onEvent({ phase: 'failed', reason: 'not-ready' });
+      if (pipeline.state !== 'present') return onEvent({ phase: 'failed', reason: 'not-present' });
+      onEvent(capture.start(performance.now()));
+    },
     stop() {
       running = false;
       if (segmenter) segmenter.close();

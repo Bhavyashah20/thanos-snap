@@ -5,10 +5,14 @@
   h1 { font-size: 15px; margin: 0 0 12px; }
   label { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; }
   input[type=range] { width: 130px; }
+  button { width: 100%; margin-top: 8px; padding: 9px; border: 0; border-radius: 8px; background: #d9a441; color: #14110f; font: 600 14px system-ui; cursor: pointer; }
   p { color: #9a8f86; font-size: 12px; margin: 12px 0 0; line-height: 1.4; }
+  #msg { color: #e08a6a; }
 </style>
 <h1>Thanos Snap</h1>
 <label>Enabled <input id="enabled" type="checkbox"></label>
 <label>Snap sensitivity <input id="sensitivity" type="range" min="0" max="1" step="0.05"></label>
-<p>Reload the call tab after turning on. Step out of frame for a second first so the empty room can be captured, then snap.</p>
+<button id="capture">Capture empty room</button>
+<p id="msg"></p>
+<p>For the cleanest result: click Capture, then step fully out of the camera's view for a few seconds. Reload the call tab after turning the extension on.</p>
 <script src="popup.js"></script>

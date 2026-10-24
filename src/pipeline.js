@@ -50,6 +50,11 @@ export class Pipeline {
     this._state = 'present';
   }
 
+  // Forget the learned room (used by "Capture empty room"); the state is untouched.
+  resetBackground() {
+    this.plate.reset(this.width, this.height);
+  }
+
   trigger(nowMs) {
     if (this._state === 'present') {
       this._state = 'dusting';

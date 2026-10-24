@@ -151,3 +151,12 @@ test('gone: a one-frame mask dropout does not flash the person back', () => {
   run(2033, [], [R1]); // segmenter misses the person for one frame; they are still in the picture
   assert.deepStrictEqual(px(out, 24, 24), BG);
 });
+
+test('resetBackground forgets the learned room but keeps the state', () => {
+  const { p, step } = make([]);
+  for (let t = 0; t < 10; t++) step(t * 33, []);
+  assert.ok(p.plate.coverage() > 0.9);
+  p.resetBackground();
+  assert.strictEqual(p.plate.coverage(), 0);
+  assert.strictEqual(p.state, 'present');
+});
