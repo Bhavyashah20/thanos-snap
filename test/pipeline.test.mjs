@@ -152,11 +152,26 @@ test('gone: a one-frame mask dropout does not flash the person back', () => {
   assert.deepStrictEqual(px(out, 24, 24), BG);
 });
 
-test('resetBackground forgets the learned room but keeps the state', () => {
+test('capture: beginCapture stages a new room without touching the live one until commit', () => {
   const { p, step } = make([]);
   for (let t = 0; t < 10; t++) step(t * 33, []);
-  assert.ok(p.plate.coverage() > 0.9);
-  p.resetBackground();
-  assert.strictEqual(p.plate.coverage(), 0);
-  assert.strictEqual(p.state, 'present');
+  const before = Uint8ClampedArray.from(p.plate.read());
+  p.beginCapture();
+  const bright = new Uint8ClampedArray(W * H * 4).fill(240);
+  p.captureFrame(bright);
+  assert.deepStrictEqual(p.plate.read(), before, 'live plate unchanged while staging');
+  p.abortCapture();
+  assert.deepStrictEqual(p.plate.read(), before, 'abort keeps the old room');
+  p.beginCapture();
+  p.captureFrame(bright);
+  p.commitCapture();
+  assert.strictEqual(p.plate.read()[0], 240);
+  assert.strictEqual(p.plate.coverage(), 1);
+});
+
+test('maskArea reports the fraction of the picture covered by the person', () => {
+  const { p, step } = make([R1]);
+  step(0);
+  assert.ok(Math.abs(p.maskArea - ((R1.x1 - R1.x0) * (R1.y1 - R1.y0)) / (W * H)) < 0.2, `maskArea=${p.maskArea}`);
+  assert.ok(p.maskArea > 0);
 });

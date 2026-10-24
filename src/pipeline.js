@@ -47,12 +47,29 @@ export class Pipeline {
     this.grown = new Uint8Array(width * height);
     this.hold = new Uint8Array(width * height);
     this.hidden = new Uint8Array(width * height);
+    this.noMask = null;
+    this.maskArea = 0;
+    this.stage = null;
     this._state = 'present';
   }
 
-  // Forget the learned room (used by "Capture empty room"); the state is untouched.
-  resetBackground() {
-    this.plate.reset(this.width, this.height);
+  // "Capture empty room": frames go into a staging copy (mask ignored: the caller vouches nobody is
+  // in view); commitCapture() swaps it in, abortCapture() leaves the live room untouched.
+  beginCapture() {
+    this.stage = new BackgroundPlate(this.width, this.height, { minBackgroundFrames: 1 });
+  }
+
+  captureFrame(rgba) {
+    if (this.stage) this.stage.update(rgba, this.noMask || (this.noMask = new Uint8Array(this.width * this.height)));
+  }
+
+  commitCapture() {
+    if (this.stage) this.plate = this.stage;
+    this.stage = null;
+  }
+
+  abortCapture() {
+    this.stage = null;
   }
 
   trigger(nowMs) {
@@ -72,10 +89,13 @@ export class Pipeline {
     // The mask is upsampled from a small image, so its edges are blocky: grow it with the frame size.
     dilate(mask, width, height, Math.max(3, Math.round(width / 80)), this.tmp, grown);
     const { hold, hidden } = this;
+    let covered = 0;
     for (let i = 0; i < grown.length; i++) {
+      covered += grown[i];
       hold[i] = grown[i] ? HOLD_FRAMES : hold[i] > 0 ? hold[i] - 1 : 0;
       hidden[i] = hold[i] > 0 ? 1 : 0;
     }
+    this.maskArea = covered / grown.length;
     this.plate.update(rgba, hidden);
 
     if (this._state === 'dusting' && !this.dust) {

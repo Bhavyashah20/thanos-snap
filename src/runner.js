@@ -64,9 +64,12 @@ export async function createRunner(realStream, { assetBase }) {
       const now = performance.now();
       pipeline.processFrame(frame.data, outImg.data, now);
       if (capture.active) {
-        const ev = capture.update(now, pipeline.plate.coverage());
-        if (ev && ev.resetPlate) pipeline.resetBackground();
-        if (ev) onCaptureEvent(ev);
+        const ev = capture.update(now, pipeline.maskArea);
+        if (ev.begin) pipeline.beginCapture();
+        if (ev.accepting) pipeline.captureFrame(frame.data);
+        if (ev.phase === 'done') pipeline.commitCapture();
+        if (ev.phase === 'failed') pipeline.abortCapture();
+        onCaptureEvent(ev);
       }
       dstCtx.putImageData(outImg, 0, 0);
     } catch (err) {
