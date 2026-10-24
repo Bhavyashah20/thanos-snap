@@ -2,6 +2,7 @@ import { BackgroundPlate } from './background-plate.js';
 import { DustEffect } from './dust.js';
 import { refineMask } from './refine.js';
 import { Relight } from './relight.js';
+import { featherMask } from './feather.js';
 
 
 // Grow a 0/1 mask by `r` pixels (separable, O(n)); hides the soft edge of an imperfect segmentation.
@@ -54,6 +55,9 @@ export class Pipeline {
     this.hidden = new Uint8Array(width * height);
     this.refined = new Uint8Array(width * height);
     this.relight = new Relight(width, height);
+    this.alpha = new Uint8Array(width * height);
+    this.region = new Uint8Array(width * height);
+    this.ftmp = new Float32Array(width * height);
     this.comp = new Uint8ClampedArray(width * height * 4);
     this.noMask = null;
     this.maskArea = 0;
@@ -177,9 +181,20 @@ export class Pipeline {
     if (this._state === 'present') return out.set(rgba);
 
     // The live picture with the person's area replaced by the room, re-lit to match the live exposure.
-    const { comp } = this;
+    // Soft edge: the pasted room fades in over a few pixels outside the hidden area instead of a hard cut-out.
+    const { comp, alpha, region } = this;
+    featherMask(hidden, width, height, Math.max(2, Math.round(width / 160)), this.ftmp, alpha);
+    for (let i = 0; i < alpha.length; i++) region[i] = alpha[i] ? 1 : 0;
     comp.set(rgba);
-    this.relight.apply(rgba, this.plate.read(), this.plate.seen, hidden, comp);
+    this.relight.apply(rgba, this.plate.read(), this.plate.seen, region, comp);
+    for (let i = 0; i < alpha.length; i++) {
+      const a = alpha[i];
+      if (a === 0 || a === 255) continue;
+      const o = i * 4, k = a / 255;
+      comp[o] = rgba[o] + (comp[o] - rgba[o]) * k;
+      comp[o + 1] = rgba[o + 1] + (comp[o + 1] - rgba[o + 1]) * k;
+      comp[o + 2] = rgba[o + 2] + (comp[o + 2] - rgba[o + 2]) * k;
+    }
 
     if (this._state === 'dusting') {
       if (this.dust.render(comp, out, nowMs)) return;

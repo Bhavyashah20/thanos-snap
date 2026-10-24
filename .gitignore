@@ -2,3 +2,5 @@ node_modules/
 dist/
 .superpowers/
 models/*.onnx
+models/*.tflite
+test-page/compare/img*.png
