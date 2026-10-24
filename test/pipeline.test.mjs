@@ -156,6 +156,7 @@ test('capture: beginCapture stages a new room without touching the live one unti
   const { p, step } = make([]);
   for (let t = 0; t < 10; t++) step(t * 33, []);
   const before = Uint8ClampedArray.from(p.plate.read());
+  assert.strictEqual(p.roomSource, 'learned');
   p.beginCapture();
   const bright = new Uint8ClampedArray(W * H * 4).fill(240);
   p.captureFrame(bright);
@@ -165,6 +166,7 @@ test('capture: beginCapture stages a new room without touching the live one unti
   p.beginCapture();
   p.captureFrame(bright);
   p.commitCapture();
+  assert.strictEqual(p.roomSource, 'captured');
   assert.strictEqual(p.plate.read()[0], 240);
   assert.strictEqual(p.plate.coverage(), 1);
 });

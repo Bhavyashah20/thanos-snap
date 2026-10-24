@@ -26,7 +26,8 @@
         const now = performance.now();
         if (now - last >= 1000) {
           const set = t.getSettings();
-          log(`fps ${frames}   ${set.width}x${set.height}\nsnap to dissolve, snap again to return`);
+          const d = window.__thanosSnapDebug, pl = d && d.pipeline;
+          log(`fps ${frames}   ${set.width}x${set.height}   room: ${pl ? pl.roomSource : 'camera only (model loading)'}   ${pl ? pl.state : ''}\nsnap to dissolve, snap again to return`);
           frames = 0; last = now;
         }
         count();

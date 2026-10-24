@@ -50,6 +50,7 @@ export class Pipeline {
     this.noMask = null;
     this.maskArea = 0;
     this.stage = null;
+    this.roomSource = 'learned'; // 'captured' once "Capture empty room" has completed
     this._state = 'present';
   }
 
@@ -64,7 +65,7 @@ export class Pipeline {
   }
 
   commitCapture() {
-    if (this.stage) this.plate = this.stage;
+    if (this.stage) { this.plate = this.stage; this.roomSource = 'captured'; }
     this.stage = null;
   }
 
