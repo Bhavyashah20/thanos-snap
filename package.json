@@ -1,0 +1,14 @@
+{
+  "name": "thanos-snap",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@mediapipe/selfie_segmentation": "^0.1.1675465747",
+    "esbuild": "^0.28.2"
+  }
+}
