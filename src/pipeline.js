@@ -1,6 +1,7 @@
 import { BackgroundPlate } from './background-plate.js';
 import { DustEffect } from './dust.js';
 import { refineMask } from './refine.js';
+import { Relight } from './relight.js';
 
 
 // Grow a 0/1 mask by `r` pixels (separable, O(n)); hides the soft edge of an imperfect segmentation.
@@ -49,6 +50,8 @@ export class Pipeline {
     this.hold = new Uint8Array(width * height);
     this.hidden = new Uint8Array(width * height);
     this.refined = new Uint8Array(width * height);
+    this.relight = new Relight(width, height);
+    this.comp = new Uint8ClampedArray(width * height * 4);
     this.noMask = null;
     this.maskArea = 0;
     this.stage = null;
@@ -138,7 +141,8 @@ export class Pipeline {
       hidden[i] = hold[i] > 0 ? 1 : 0;
     }
     this.maskArea = covered / grown.length;
-    this.plate.update(rgba, hidden);
+    // A captured room stays as captured (Relight handles lighting changes); a learned one keeps learning.
+    if (this.roomSource !== 'captured') this.plate.update(rgba, hidden);
 
     if (this._state === 'dusting' && !this.dust) {
       if (!grown.includes(1)) this._state = 'present'; // nobody to snap away
@@ -148,23 +152,27 @@ export class Pipeline {
       }
     }
 
-    if (this._state === 'dusting') {
-      if (!this.dust.render(this.plate.read(), out, nowMs)) this._state = 'gone';
-      else return;
-    }
     if (this._state === 'returning' && nowMs - this.returnStartMs >= this.returnMs) this._state = 'present';
+    if (this._state === 'present') return out.set(rgba);
+
+    // The live picture with the person's area replaced by the room, re-lit to match the live exposure.
+    const { comp } = this;
+    comp.set(rgba);
+    this.relight.apply(rgba, this.plate.read(), this.plate.seen, hidden, comp);
+
+    if (this._state === 'dusting') {
+      if (this.dust.render(comp, out, nowMs)) return;
+      this._state = 'gone';
+    }
 
     out.set(rgba);
-    if (this._state === 'present') return;
-
-    const plate = this.plate.read();
     const a = this._state === 'returning' ? (nowMs - this.returnStartMs) / this.returnMs : 0;
     for (let i = 0; i < hidden.length; i++) {
       if (!hidden[i]) continue;
       const o = i * 4;
-      out[o] = plate[o] + (rgba[o] - plate[o]) * a;
-      out[o + 1] = plate[o + 1] + (rgba[o + 1] - plate[o + 1]) * a;
-      out[o + 2] = plate[o + 2] + (rgba[o + 2] - plate[o + 2]) * a;
+      out[o] = comp[o] + (rgba[o] - comp[o]) * a;
+      out[o + 1] = comp[o + 1] + (rgba[o + 1] - comp[o + 1]) * a;
+      out[o + 2] = comp[o + 2] + (rgba[o + 2] - comp[o + 2]) * a;
     }
   }
 }

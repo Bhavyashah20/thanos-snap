@@ -24,11 +24,13 @@ export class BackgroundPlate {
     this.updates = 0;
     this.filledAt = 0;
     this.filled = null;
+    this.dirty = true;
     this.inpainter = new Inpainter(width, height);
   }
 
   update(rgba, mask) {
     this.updates++;
+    this.dirty = true;
     const { plate, seen, run, minBackgroundFrames } = this;
     for (let i = 0; i < seen.length; i++) {
       if (mask[i]) { run[i] = 0; continue; }
@@ -54,8 +56,11 @@ export class BackgroundPlate {
   // inpainted from the surrounding colours; that fill is recomputed every few updates, not every read.
   read() {
     const { out, seen } = this;
-    out.set(this.plate); // float -> clamped bytes (rounds)
-    if (this.seenCount === seen.length) return out;
+    if (this.seenCount === seen.length) {
+      if (this.dirty) { out.set(this.plate); this.dirty = false; } // float -> clamped bytes (rounds); cached until the next update
+      return out;
+    }
+    out.set(this.plate);
     if (!this.filled || this.updates - this.filledAt >= FILL_EVERY) {
       this.inpainter.fill(this.plate, seen, this.filled || (this.filled = new Uint8ClampedArray(out.length)));
       this.filledAt = this.updates;

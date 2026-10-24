@@ -224,3 +224,22 @@ test('with a captured room, a limb the model missed is still hidden when gone', 
   assert.deepStrictEqual(px(out, 35, 25), BG, 'arm hidden');
   assert.deepStrictEqual(px(out, 24, 24), BG, 'body hidden');
 });
+
+test('gone: the pasted background is matched to the live lighting (no seam after an exposure change)', () => {
+  const brighten = (f) => { const g = Uint8ClampedArray.from(f); for (let i = 0; i < g.length; i += 4) { g[i] *= 1.2; g[i + 1] *= 1.2; g[i + 2] *= 1.2; } return g; };
+  let current = [];
+  const p = new Pipeline({ width: W, height: H, durationMs: 1000, minBackgroundFrames: 1, segment: () => maskOf(current) });
+  const out = new Uint8ClampedArray(W * H * 4);
+  p.beginCapture();
+  for (let i = 0; i < 5; i++) p.captureFrame(frameWith([]));
+  assert.strictEqual(p.commitCapture(), true);
+  const run = (t) => { current = [R1]; p.processFrame(brighten(frameWith([R1])), out, t); }; // the camera auto-brightened
+  run(0);
+  p.trigger(10);
+  run(33);
+  run(2000);
+  assert.strictEqual(p.state, 'gone');
+  const g = px(out, 24, 24)[1];
+  assert.ok(Math.abs(g - 120) <= 4, `hidden area green=${g}, live wall green=${px(out, 5, 5)[1]}`);
+  assert.ok(Math.abs(px(out, 5, 5)[1] - g) <= 4, 'no seam between pasted and live');
+});

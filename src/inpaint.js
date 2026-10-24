@@ -15,6 +15,18 @@ export class Inpainter {
 
   // plate: Float32 RGBA, seen: 0/1 per pixel, out: Uint8ClampedArray RGBA (every pixel written).
   fill(plate, seen, out) {
+    const rgb = this.solve(plate, seen);
+    for (let i = 0; i < seen.length; i++) {
+      out[i * 4] = rgb[i * 3];
+      out[i * 4 + 1] = rgb[i * 3 + 1];
+      out[i * 4 + 2] = rgb[i * 3 + 2];
+      out[i * 4 + 3] = 255;
+    }
+  }
+
+  // Same, but returns the filled Float32 RGB (3 per pixel, may be negative) without clamping.
+  // The returned array is reused by the next call.
+  solve(plate, seen) {
     const L = this.levels;
     const base = L[0];
     for (let i = 0; i < seen.length; i++) {
@@ -61,11 +73,6 @@ export class Inpainter {
         }
       }
     }
-    for (let i = 0; i < seen.length; i++) {
-      out[i * 4] = base.rgb[i * 3];
-      out[i * 4 + 1] = base.rgb[i * 3 + 1];
-      out[i * 4 + 2] = base.rgb[i * 3 + 2];
-      out[i * 4 + 3] = 255;
-    }
+    return base.rgb;
   }
 }

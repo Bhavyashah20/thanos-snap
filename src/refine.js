@@ -32,9 +32,14 @@ export function refineMask(frame, room, seen, mask, w, h, out) {
   const [gr, gg, gb] = channelGains(frame, room, seen, mask, w, h);
   if (stack.length < n) stack = new Int32Array(n);
 
-  let top = 0;
-  for (let i = 0; i < n; i++) if (mask[i]) stack[top++] = i;
-  let area = top;
+  // Only the mask's boundary pixels can reach new pixels; interior ones have no neighbour outside the mask.
+  let top = 0, area = 0;
+  for (let i = 0; i < n; i++) {
+    if (!mask[i]) continue;
+    area++;
+    const x = i % w;
+    if (x === 0 || x === w - 1 || i < w || i >= n - w || !mask[i - 1] || !mask[i + 1] || !mask[i - w] || !mask[i + w]) stack[top++] = i;
+  }
 
   const differs = (i) => {
     if (!seen[i]) return false;
