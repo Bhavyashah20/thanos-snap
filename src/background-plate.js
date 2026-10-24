@@ -54,8 +54,12 @@ export class BackgroundPlate {
       this.inpainter.fill(this.plate, seen, this.filled || (this.filled = new Uint8ClampedArray(out.length)));
       this.filledAt = this.updates;
     }
-    for (let i = 0; i < seen.length; i++)
-      if (!seen[i]) out.set(this.filled.subarray(i * 4, i * 4 + 4), i * 4);
+    const { filled } = this;
+    for (let i = 0; i < seen.length; i++) {
+      if (seen[i]) continue;
+      const o = i * 4;
+      out[o] = filled[o]; out[o + 1] = filled[o + 1]; out[o + 2] = filled[o + 2]; out[o + 3] = 255;
+    }
     return out;
   }
 
